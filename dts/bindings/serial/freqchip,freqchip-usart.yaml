@@ -1,0 +1,48 @@
+# Copyright (c) 2025 Freqchip
+# SPDX-License-Identifier: Apache-2.0
+
+description: Freqchip FR USART
+
+compatible: "freqchip,freqchip-usart"
+
+include: [uart-controller.yaml, pinctrl-device.yaml]
+
+properties:
+  reg:
+    required: true
+
+  clocks:
+    type: phandle-array
+
+  resets:
+    type: phandle-array
+
+  interrupts:
+    required: true
+
+  current-speed:
+    description: |
+      Initial baud rate setting for UART. Defaults to standard baudrate of 115200 if not specified.
+    default: 115200
+
+  stop-bits:
+    description: |
+      Sets the number of stop bits. Defaults to standard of 1 if not specified.
+    default: "1"
+
+  data-bits:
+    description: |
+      Sets the number of data bits. Defaults to standard of 8 if not specified.
+    default: 8
+
+  tx-fifo-empty-threshold:
+    type: int
+    description: |
+      Specifies the Tx FIFO almost empty threshold. This parameter can be a 4bit value
+    default: 8
+
+  rx-fifo-full-threshold:
+    type: int
+    description: |
+      Specifies the Rx FIFO almost full threshold. This parameter can be a 4bit value
+    default: 8

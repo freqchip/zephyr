@@ -1,0 +1,13 @@
+description: Bluetooth HCI for Freqchip FR802X (in-chip memory based)
+
+compatible: "freqchip,fr802x-bt-hci"
+
+include: bt-hci.yaml
+
+properties:
+  bt-hci-name:
+    default: "BT FR802X"
+  bt-hci-bus:
+    default: "BT_HCI_BUS_VIRTUAL"
+  bt-hci-quirks:
+    default: ["BT_HCI_QUIRK_NO_AUTO_DLE"]

@@ -262,6 +262,8 @@ rsource "Kconfig.native_tty"
 
 rsource "Kconfig.numaker"
 
+rsource "Kconfig.freqchip"
+
 rsource "Kconfig.efinix_sapphire"
 
 rsource "Kconfig.sedi"

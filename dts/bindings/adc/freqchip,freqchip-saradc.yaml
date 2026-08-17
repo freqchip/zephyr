@@ -1,0 +1,113 @@
+# Copyright (c) 2026 Freqchip
+# SPDX-License-Identifier: Apache-2.0
+
+description: Freqchip SARADC Controller
+
+compatible: "freqchip,freqchip-saradc"
+
+include: base.yaml
+
+properties:
+  reg:
+    required: true
+
+  interrupts:
+    required: false
+
+  channels:
+    type: int
+    required: true
+    description: |
+      Number of available ADC channels.
+      Maximum 32 for FR802x SARADC.
+
+  clk-div:
+    type: int
+    default: 10
+    description: |
+      SARADC clock divider. Must be a multiple of 2. Max 254.
+
+  sampling-cycle:
+    type: int
+    default: 16
+    description: |
+      SARADC sampling cycle. Value from 1 to 16.
+
+  reference:
+    type: int
+    default: 0
+    description: |
+      Reference voltage source.
+      0 = IOLDO, 1 = External, 2 = Internal 1.2V,
+      3 = Internal 1.5V, 4 = Internal 1.8V, 5 = Internal 2.4V.
+
+  "#io-channel-cells":
+    type: int
+    const: 1
+
+  "#address-cells":
+    type: int
+    const: 1
+
+  "#size-cells":
+    type: int
+    const: 0
+
+child-binding:
+  description: |
+    Freqchip SARADC channel configuration.
+    All properties are optional, configure only what you need.
+
+  properties:
+    reg:
+      type: int
+      required: false
+      description: Channel identifier.
+
+    zephyr,gain:
+      type: string
+      required: false
+      description: ADC gain setting.
+
+    zephyr,reference:
+      type: string
+      required: false
+      description: ADC reference voltage source.
+
+    zephyr,acquisition-time:
+      type: int
+      required: false
+      description: ADC acquisition time.
+
+    zephyr,differential:
+      type: boolean
+      description: Enable differential input mode.
+
+    zephyr,input-positive:
+      type: int
+      description: Positive ADC input mapping.
+
+    zephyr,input-negative:
+      type: int
+      description: Negative ADC input mapping.
+
+    freqchip,voltage-divider:
+      type: int
+      default: 0
+      enum:
+        - 0    # SARADC_VOLTAGE_DIVIDER_BYPASS (直通)
+        - 1    # SARADC_VOLTAGE_DIVIDER_0P25  (1/4 分压)
+        - 2    # SARADC_VOLTAGE_DIVIDER_0P5   (1/2 分压)
+      description: |
+        Input voltage divider selection.
+        0 = bypass (no divider)
+        1 = 1/4 voltage divider
+        2 = 1/2 voltage divider
+
+    freqchip,source-follower:
+      type: boolean
+      description: |
+        Enable source follower for this channel.
+
+io-channel-cells:
+  - input

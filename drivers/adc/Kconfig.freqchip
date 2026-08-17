@@ -1,0 +1,12 @@
+# ADC configuration options
+
+# Copyright (c) 2026 Freqchip
+# SPDX-License-Identifier: Apache-2.0
+
+config ADC_FREQCHIP
+	bool "Freqchip SARADC driver"
+	default y
+	depends on DT_HAS_FREQCHIP_FREQCHIP_SARADC_ENABLED
+	select ADC_CONFIGURABLE_INPUTS
+	help
+	  Enable SARADC driver for Freqchip FR802x series MCUs.

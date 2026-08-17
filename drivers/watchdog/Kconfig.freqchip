@@ -1,0 +1,9 @@
+# Copyright (c) 2026 Freqchip
+# SPDX-License-Identifier: Apache-2.0
+
+config WDT_FREQCHIP
+	bool "Freqchip WDT driver"
+	default y
+	depends on DT_HAS_FREQCHIP_FREQCHIP_WDT_ENABLED
+	help
+	  Enable the Watchdog Timer (WDT) driver for Freqchip FR802x series MCUs.

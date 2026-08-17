@@ -1,0 +1,20 @@
+# Copyright (c) 2026 Freqchip
+#
+# SPDX-License-Identifier: Apache-2.0
+
+description: Freqchip FR802x Watchdog Timer (WDT)
+
+compatible: "freqchip,freqchip-wdt"
+
+include: base.yaml
+
+properties:
+  reg:
+    required: true
+
+  clock-frequency:
+    type: int
+    required: true
+    description: |
+      Clock frequency of the WDT counter in Hz.
+      The timeout is calculated as: counter = clock_frequency * timeout_ms / 1000

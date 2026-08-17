@@ -1,0 +1,10 @@
+# Copyright (c) 2026 Freqchip
+# SPDX-License-Identifier: Apache-2.0
+
+config PINCTRL_FREQCHIP
+	bool "Freqchip pin controller driver"
+	default y
+	depends on DT_HAS_FREQCHIP_FREQCHIP_PINCTRL_ENABLED
+	help
+	  Pin controller driver for Freqchip FR platforms.
+	  Implements pin multiplexing via the system GPIO controller.

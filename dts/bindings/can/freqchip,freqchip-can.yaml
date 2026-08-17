@@ -1,0 +1,31 @@
+# SPDX-License-Identifier: Apache-2.0
+
+description: |
+  Freqchip FR802x MACAN CAN FD controller.
+
+  This controller supports both Classical CAN and CAN FD frames.
+  Unlike STM32 FDCAN, the FR802x MACAN block is not Bosch M_CAN compatible,
+  so the message RAM layout is fixed internally by the driver instead of being
+  described through a dedicated devicetree property.
+
+compatible: "freqchip,freqchip-can"
+
+include: ["can-fd-controller.yaml", "pinctrl-device.yaml"]
+
+properties:
+  reg:
+    required: true
+
+  interrupts:
+    required: true
+
+  interrupt-names:
+    description: |
+      Optional names of the two MACAN interrupt lines. If present, they should
+      be "int0" and "int1".
+
+  pinctrl-0:
+    required: true
+
+  pinctrl-names:
+    required: true

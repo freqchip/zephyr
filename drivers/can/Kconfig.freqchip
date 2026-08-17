@@ -1,0 +1,9 @@
+# Copyright (c) 2026 Freqchip
+# SPDX-License-Identifier: Apache-2.0
+
+config CAN_FREQCHIP
+	bool "Freqchip CAN driver"
+	default y
+	depends on DT_HAS_FREQCHIP_FREQCHIP_CAN_ENABLED
+	help
+	  Enable the CAN driver for Freqchip FR802x series MCUs.

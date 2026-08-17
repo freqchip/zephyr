@@ -1,0 +1,157 @@
+/*
+ * Copyright (c) 2026 Freqchip
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
+#include <arm/armv8-m.dtsi>
+#include <zephyr/dt-bindings/gpio/gpio.h>
+#include <freq.h>
+
+/ {
+    cpus {
+        #address-cells = <1>;
+        #size-cells = <0>;
+
+        cpu0: cpu@0 {
+            device_type = "cpu";
+            compatible = "arm,cortex-m33";
+            reg = <0>;
+            #address-cells = <1>;
+            #size-cells = <1>;
+        };
+    };
+
+    soc {
+        flash_qspi: flash-controller@e00a4000 {
+            compatible = "freqchip,fr-flash-controller";
+            reg = <0xe00a4000 0x200>;
+
+            #address-cells = <1>;
+            #size-cells = <1>;
+
+            flash0: flash@10000000 {
+                compatible = "soc-nv-flash";
+                write-block-size = <1>;
+                erase-block-size = <4096>;
+            };
+        };
+
+		sram0: memory@20000000 {
+			compatible = "mmio-sram";
+			reg = <0x20000000 0x18000>;
+		};
+
+        usart0: uart@50020000 {
+            compatible = "freqchip,freqchip-usart";
+            reg = <0x50020000 0x8000>;
+            interrupts = <26 2>;
+            status = "disabled";
+        };
+
+        usart1: uart@50028000 {
+            compatible = "freqchip,freqchip-usart";
+            reg = <0x50028000 0x8000>;
+            interrupts = <27 2>;
+            status = "disabled";
+        };
+
+        usart2: uart@50120000 {
+            compatible = "freqchip,freqchip-usart";
+            reg = <0x50120000 0x8000>;
+            interrupts = <28 2>;
+            status = "disabled";
+        };
+
+        usart3: uart@50128000 {
+            compatible = "freqchip,freqchip-usart";
+            reg = <0x50128000 0x8000>;
+            interrupts = <29 2>;
+            status = "disabled";
+        };
+
+        fr802x_bt_hci: bt-hci@5000a000 {
+            compatible = "freqchip,fr802x-bt-hci";
+            reg = <0x5000A000 0x1000>;
+            interrupts = <0 2>, <1 2>;
+            interrupt-names = "bb_ip", "bb_ble";
+            status = "disabled";
+        };
+
+        adc: adc@500e0000 {
+            compatible = "freqchip,freqchip-saradc";
+            reg = <0x500E0000 0x200>;
+            interrupts = <36 2>;
+            #address-cells = <1>;
+            #size-cells = <0>;
+            #io-channel-cells = <1>;
+            status = "disabled";
+        };
+
+        i2c0: i2c@50030000 {
+            compatible = "freqchip,freqchip-i2c";
+            reg = <0x50030000 0x200>;
+            #address-cells = <1>;
+            #size-cells = <0>;
+            interrupts = <30 2>;
+            status = "disabled";
+        };
+
+        i2c1: i2c@50130000 {
+            compatible = "freqchip,freqchip-i2c";
+            reg = <0x50130000 0x200>;
+            #address-cells = <1>;
+            #size-cells = <0>;
+            interrupts = <31 2>;
+            status = "disabled";
+        };
+
+        can0: can@50260000 {
+            compatible = "freqchip,freqchip-can";
+            reg = <0x50260000 0x200>;
+            interrupts = <10 2>, <11 2>;
+            interrupt-names = "int0", "int1";
+            status = "disabled";
+        };
+
+        wdt: wdt@e0060000 {
+            compatible = "freqchip,freqchip-wdt";
+            reg = <0xe0060000 0x20>;
+            clock-frequency = <1000000>;
+            status = "disabled";
+        };
+
+        pinctrl: pinctrl@e0052000 {
+            compatible = "freqchip,freqchip-pinctrl";
+            #address-cells = <1>;
+            #size-cells = <1>;
+            reg = <0xE0052000 0x28>;
+
+            gpioa: gpio@50010000 {
+                compatible = "freqchip,freqchip-gpio";
+                gpio-controller;
+                #gpio-cells = <2>;
+                reg = <0x50010000 0x30>;
+                interrupts = <21 2>;
+            };
+            gpiob: gpio@50110000 {
+                compatible = "freqchip,freqchip-gpio";
+                gpio-controller;
+                #gpio-cells = <2>;
+                reg = <0x50110000 0x30>;
+                interrupts = <22 2>;
+            };
+            gpioc: gpio@50210000 {
+                compatible = "freqchip,freqchip-gpio";
+                gpio-controller;
+                #gpio-cells = <2>;
+                reg = <0x50210000 0x30>;
+                interrupts = <23 2>;
+            };
+        };
+    };
+};
+
+&nvic {
+    arm,num-irq-priority-bits = <3>;
+};

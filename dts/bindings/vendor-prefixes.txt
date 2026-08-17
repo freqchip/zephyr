@@ -770,4 +770,5 @@ zinitix	Zinitix Co., Ltd
 zkmagic	Shenzhen Zkmagic Technology Co., Ltd.
 zte	ZTE Corp.
 zyxel	ZyXEL Communications Corp.
+freqchip	Freqchip Semiconductor Co., Ltd.
 # zephyr-keep-sorted-stop

@@ -25,7 +25,7 @@ zephyr_library_sources_ifdef(CONFIG_CAN_SJA1000      can_sja1000.c)
 zephyr_library_sources_ifdef(CONFIG_CAN_ESP32_TWAI   can_esp32_twai.c)
 zephyr_library_sources_ifdef(CONFIG_CAN_KVASER_PCI   can_kvaser_pci.c)
 zephyr_library_sources_ifdef(CONFIG_CAN_NRF          can_nrf.c)
-
+zephyr_library_sources_ifdef(CONFIG_CAN_FREQCHIP     can_freqchip_fdcan.c)
 zephyr_library_sources_ifdef(CONFIG_USERSPACE        can_handlers.c)
 zephyr_library_sources_ifdef(CONFIG_CAN_SHELL        can_shell.c)
 zephyr_library_sources_ifdef(CONFIG_CAN_NXP_S32_CANXL    can_nxp_s32_canxl.c)

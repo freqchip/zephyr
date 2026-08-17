@@ -1,0 +1,10 @@
+# Copyright (c) 2026 Freqchip
+# SPDX-License-Identifier: Apache-2.0
+
+config USART_FREQCHIP
+	bool "Freqchip serial driver"
+	default y
+	depends on DT_HAS_FREQCHIP_FREQCHIP_USART_ENABLED
+	select SERIAL_HAS_DRIVER
+	help
+	  This option enables the USART driver for Freqchip SoC family.

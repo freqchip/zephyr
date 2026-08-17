@@ -1,0 +1,36 @@
+# Copyright (c) 2025 Freqchip
+# SPDX-License-Identifier: Apache-2.0
+
+description: |
+    Freqchip Pin controller.
+    
+compatible: "freqchip,freqchip-pinctrl"
+
+include: base.yaml
+
+properties:
+  reg:
+    required: true
+    
+child-binding:
+  description: |
+      This binding gives a base representation of the Freqchip pins configuration
+      
+  include:
+    - name: pincfg-node.yaml
+      property-allowlist:
+        - bias-disable
+        - bias-pull-down
+        - bias-pull-up
+        - drive-push-pull
+        - drive-open-drain
+        - output-low
+        - output-high
+
+  properties:
+    pinmux:
+      required: true
+      type: int
+      description: |
+        Freqchip io Alternate function selection (port, pin and function)
+        For example: ['A', 0, 1] means set PA0 to function 1.

@@ -110,6 +110,15 @@ config BT_ESP32
 	help
 	  Espressif HCI bluetooth interface
 
+config BT_FREQ_FR802X
+	bool "FR802X HCI driver"
+	default y
+	depends on DT_HAS_FREQCHIP_FR802X_BT_HCI_ENABLED
+	help
+	  Freqchip FR802X BLE Controller HCI driver. In-chip memory
+	  based HCI (no UART/SPI). Runs the libbtdm_controller.a library
+	  on the same MCU.
+
 config BT_PSOC6_BLESS
 	bool "PSOC6 BLESS driver"
 	default y
