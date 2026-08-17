@@ -24,7 +24,7 @@
 #include <zephyr/arch/arm/cortex_m/cpu.h>
 _ASM_FILE_PROLOGUE
 
-GTEXT(z_arm_svc)
+GTEXT(z_arm_svc_original)
 GTEXT(z_arm_pendsv)
 GTEXT(z_do_kernel_oops)
 #if defined(CONFIG_USERSPACE)
@@ -353,7 +353,7 @@ in_fp_endif:
  * - System Calls (User mode)
  *
  */
-SECTION_FUNC(TEXT, z_arm_svc)
+SECTION_FUNC(TEXT, z_arm_svc_original)
   /* Use EXC_RETURN state to find out if stack frame is on the
    * MSP or PSP
    */
