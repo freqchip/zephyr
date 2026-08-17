@@ -1,0 +1,15 @@
+sample:
+  description: Freqchip FR8029D driver test sample
+  name: driver test
+common:
+  tags: drivers
+  integration_platforms:
+    - fr8029D_BIB
+  harness: console
+  harness_config:
+    type: one_line
+    regex:
+      - "Driver Test! (.*)"
+tests:
+  sample.drivers.driver_test:
+    tags: drivers
