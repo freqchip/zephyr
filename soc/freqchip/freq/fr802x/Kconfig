@@ -1,0 +1,18 @@
+# Copyright (c) 2025 Freqchip
+# SPDX-License-Identifier: Apache-2.0
+
+config SOC_SERIES_FR802X
+    select XIP
+    select HAS_CUSTOM_LIBC_MALLOC
+    select ARM
+    select CPU_CORTEX_M33
+    select CPU_CORTEX_M_HAS_SYSTICK
+    select CPU_HAS_FPU
+    select CPU_HAS_VFP
+    select VFP_SP_D16
+    select CPU_HAS_ARM_MPU
+    select CPU_HAS_TEE
+    select ARMV8_M_DSP
+    select SOC_EARLY_INIT_HOOK
+    select OUTPUT_DISASSEMBLY
+    select SERIAL_SUPPORT_INTERRUPT

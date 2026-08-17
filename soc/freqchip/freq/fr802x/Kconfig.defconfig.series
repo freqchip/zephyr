@@ -1,0 +1,12 @@
+# Copyright (c) 2025 Freqchip
+# SPDX-License-Identifier: Apache-2.0
+
+if SOC_SERIES_FR802X
+
+# Do not reserve a second, unused Zephyr system heap by default.
+config HEAP_MEM_POOL_SIZE
+	default 0
+
+rsource "Kconfig.defconfig.fr80*"
+
+endif # SOC_SERIES_FR802X

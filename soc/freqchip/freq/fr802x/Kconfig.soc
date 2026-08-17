@@ -1,0 +1,16 @@
+# Copyright (c) 2025 Freqchip
+# SPDX-License-Identifier: Apache-2.0
+
+config SOC_SERIES_FR802X
+	bool
+	select SOC_FAMILY_FREQCHIP_FR
+
+config SOC_SERIES
+	default "fr802x" if SOC_SERIES_FR802X
+
+config SOC_FR8029D
+	bool
+	select SOC_SERIES_FR802X
+
+config SOC
+	default "fr8029D" if SOC_FR8029D

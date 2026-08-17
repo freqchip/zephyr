@@ -1,0 +1,6 @@
+family:
+- name: freqchip_soc
+  series:
+  - name: fr802x
+    socs:
+    - name: fr8029D

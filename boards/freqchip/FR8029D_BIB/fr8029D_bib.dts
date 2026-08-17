@@ -1,0 +1,220 @@
+/*
+ * Copyright (c) 2026 Freqchip
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
+/dts-v1/;
+
+#include <freqchip/fr802x/fr802x.dtsi>
+#include <mem.h>
+
+/ {
+	model = "Freqchip FR8029D_BIB board";
+	compatible = "fr,fr8029d_bib";
+
+	chosen {
+		zephyr,console = &usart2;
+		zephyr,shell-uart = &usart0;
+		zephyr,sram = &sram0;
+		zephyr,flash = &flash0;
+		zephyr,bt-hci = &fr802x_bt_hci;
+	};
+
+	leds: leds {
+		compatible = "gpio-leds";
+		status = "okay";
+		red_led: led_pa13 {
+			gpios = <&gpioc 13 GPIO_ACTIVE_HIGH>;
+			label = "LED_RED";
+		};
+	};
+};
+
+&cpu0 {
+	clock-frequency = <DT_FREQ_M(24)>;
+};
+
+&sram0 {
+    #address-cells = <1>;
+    #size-cells    = <1>;
+
+    boot_ram: boot_ram@0 {
+        reg = <0x00000000 0x00001818>;
+    };
+
+    user_ram: user_ram@1818 {
+        reg = <0x00001818 0x000167E8>;
+    };
+};
+
+&flash0 {
+	reg = <0x10000000 DT_SIZE_K(1024)>;
+
+	partitions {
+		compatible = "fixed-partitions";
+		#address-cells = <1>;
+		#size-cells = <1>;
+
+		info_partition: partition@0 {
+			label = "information";
+			reg = <0x00000000 0x00002000>;
+		};
+
+		slot0_partition: partition@2000 {
+			label = "image-0";
+			reg = <0x00002000 0x00060000>;
+		};
+	};
+};
+
+&pinctrl {
+	/* USART2 引脚配置: PC11=TX, PC10=RX, 复用功能1 */
+	usart2_rx_pc10: usart2_rx_pc10 {
+		pinmux = <FR_PINMUX('C', 10, 1)>;
+		bias-pull-up;
+	};
+	usart2_tx_pc11: usart2_tx_pc11 {
+		pinmux = <FR_PINMUX('C', 11, 1)>;
+		bias-pull-up;
+	};
+
+	/* USART0 引脚配置: PA10=RX, PA11=TX, 复用功能1 */
+	usart0_rx_pa10: usart0_rx_pa10 {
+		pinmux = <FR_PINMUX('A', 10, 1)>;
+		bias-pull-up;
+	};
+	usart0_tx_pa11: usart0_tx_pa11 {
+		pinmux = <FR_PINMUX('A', 11, 1)>;
+		bias-pull-up;
+	};
+
+	/* USART1 引脚配置: PA14=RX, PA15=TX, 复用功能1 */
+	usart1_rx_pa14: usart1_rx_pa14 {
+		pinmux = <FR_PINMUX('A', 14, 1)>;
+		bias-pull-up;
+	};
+	usart1_tx_pa15: usart1_tx_pa15 {
+		pinmux = <FR_PINMUX('A', 15, 1)>;
+		bias-pull-up;
+	};
+
+	/* I2C0 引脚配置: PC0=SCL, PC1=SDA, 复用功能1 */
+	i2c0_scl_pc0: i2c0_scl_pc0 {
+		pinmux = <FR_PINMUX('C', 0, 2)>;
+		bias-pull-up;
+	};
+	i2c0_sda_pc1: i2c0_sda_pc1 {
+		pinmux = <FR_PINMUX('C', 1, 2)>;
+		bias-pull-up;
+	};
+
+	/* CAN0 引脚配置: PB14=RX, PB15=TX, 复用功能6 */
+	can0_rx_pb14: can0_rx_pb14 {
+		pinmux = <FR_PINMUX('B', 14, 6)>;
+		bias-pull-up;
+	};
+	can0_tx_pb15: can0_tx_pb15 {
+		pinmux = <FR_PINMUX('B', 15, 6)>;
+		bias-pull-up;
+	};
+};
+
+&usart2 {
+	pinctrl-0 = <&usart2_rx_pc10 &usart2_tx_pc11>;
+	pinctrl-names = "default";
+	current-speed = <1500000>;      /* 波特率 */
+	data-bits = <8>;               /* 数据位: 7/8/9 */
+	parity    = "none";            /* 无校验（默认值） */
+	stop-bits = "1";               /* 停止位: 0_5 / 1 / 1_5 / 2 */
+	//hw-flow-control;
+	status = "okay";
+};
+
+&usart0 {
+	pinctrl-0 = <&usart0_rx_pa10 &usart0_tx_pa11>;
+	pinctrl-names = "default";
+	current-speed = <1500000>;     /* 波特率 */
+	data-bits = <8>;               /* 数据位: 7/8/9 */
+	parity    = "none";            /* 无校验（默认值） */
+	stop-bits = "1";               /* 停止位: 0_5 / 1 / 1_5 / 2 */
+	//hw-flow-control;
+	status = "okay";
+};
+
+&usart1 {
+	pinctrl-0 = <&usart1_rx_pa14 &usart1_tx_pa15>;
+	pinctrl-names = "default";
+	current-speed = <115200>;     /* 波特率 */
+	data-bits = <8>;               /* 数据位: 7/8/9 */
+	parity    = "none";            /* 无校验（默认值） */
+	stop-bits = "1";               /* 停止位: 0_5 / 1 / 1_5 / 2 */
+	//hw-flow-control;
+	status = "okay";
+};
+
+&gpioa {
+	status = "okay";
+};
+
+&gpiob {
+	status = "okay";
+};
+
+&gpioc {
+	status = "okay";
+};
+
+&adc {
+	status   = "okay";
+	channels = <2>;
+	reference = <2>;
+	clk-div  = <12>;
+	sampling-cycle = <16>;
+
+	/* 单端模式 */
+	channel@0 {
+		reg = <0>;
+		zephyr,input-positive = <18>; /* ADC_CH_MAP_PORTC_0 */
+		zephyr,input-negative = <0>;
+		freqchip,voltage-divider = <0>;
+	};
+
+	/* 差分模式 */
+	channel@1 {
+		reg = <1>;
+		zephyr,differential;
+		zephyr,input-positive = <11>; /* ADC_CH_MAP_VBEP */
+		zephyr,input-negative = <10>; /* ADC_CH_MAP_VBEN */
+		freqchip,voltage-divider = <0>;
+	};
+};
+
+&i2c0 {
+	pinctrl-0 = <&i2c0_scl_pc0 &i2c0_sda_pc1>;
+	pinctrl-names = "default";
+	clock-frequency = <100000>;
+	status = "okay";
+};
+
+&can0 {
+	pinctrl-0 = <&can0_rx_pb14 &can0_tx_pb15>;      /* PB14=CAN0_RX, PB15=CAN0_TX */
+	pinctrl-names = "default";
+	bitrate = <500000>;                           /* 仲裁段波特率 500 kbps */
+	sample-point = <750>;                         /* 仲裁段采样点 75% */
+	bitrate-data = <1000000>;                     /* CAN FD 数据段波特率 1 Mbps */
+	sample-point-data = <750>;                    /* CAN FD 数据段采样点 75% */
+	status = "okay";
+
+	can-transceiver {
+		max-bitrate = <5000000>;                  /* 收发器最高支持 5 Mbps */
+	};
+};
+
+&wdt {
+	status = "okay";
+};
+
+&fr802x_bt_hci {
+	status = "okay";
+};

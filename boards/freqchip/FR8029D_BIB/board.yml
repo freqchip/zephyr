@@ -1,0 +1,6 @@
+board:
+  name: fr8029D_BIB
+  vendor: fr
+  socs:
+    - name: fr8029D
+
