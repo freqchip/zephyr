@@ -137,7 +137,8 @@ manifest:
       groups:
         - fs
     - name: hal_freqchip
-      revision: 0657d9f97d973542e438f628a704f5d8ea0cdef5
+      url: https://github.com/freqchip/hal_freqchip
+      revision: 40f494178df76ee6e7a127dcdd1134689109c916
       path: modules/hal/freqchip
       groups:
         - hal
