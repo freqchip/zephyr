@@ -10,6 +10,12 @@ config REQUIRES_FULL_LIBC
 	  Select a C library implementation that provides a complete C library
 	  implementation, rather than the subset provided by MINIMAL_LIBC.
 
+config HAS_CUSTOM_LIBC_MALLOC
+	bool
+	help
+	  Selected by platforms which provide the malloc family themselves.
+	  The common C library allocator is disabled when this is selected.
+
 config REQUIRES_FLOAT_PRINTF
 	bool "Requires floating point support in printf"
 	select CBPRINTF_FP_SUPPORT if MINIMAL_LIBC
