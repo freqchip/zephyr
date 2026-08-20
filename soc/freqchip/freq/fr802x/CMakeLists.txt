@@ -2,6 +2,7 @@
 
 zephyr_include_directories(${ZEPHYR_BASE}/drivers)
 zephyr_sources(soc.c)
+zephyr_sources(power.c)
 
 # BLE exchange RAM is mapped in the Cortex-M Device memory region.  HCI
 # packets start with a one-byte H4 indicator, so their headers are naturally

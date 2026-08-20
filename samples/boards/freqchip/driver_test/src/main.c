@@ -4,6 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+#include <stdint.h>
 #include <stdio.h>
 
 #include <zephyr/kernel.h>
@@ -22,6 +23,7 @@
 //#include <fr802x.h>
 //#include <system_fr802x.h>
 #include <driver_usart.h>
+#include <driver_cali.h>
 //#include <driver_saradc.h>
 
 /* Zephyr 内核函数，无公共头文件，需要手动声明 */
@@ -54,6 +56,12 @@ static const struct device *wdt        = DEVICE_DT_GET(DT_NODELABEL(wdt));
 #define LED_RED_IDX DT_NODE_CHILD_IDX(DT_NODELABEL(red_led))
 
 static struct gpio_callback button_cb_data;
+
+void PMU_IRQHandler(void);
+void PMU_IRQHandler_dynamic(const void *dev)
+{
+    PMU_IRQHandler();
+}
 
 void button_pressed_callback(const struct device *dev, struct gpio_callback *cb, gpio_port_pins_t pins)
 {
@@ -93,6 +101,37 @@ static void bluetooth_adv_demo(void);
 static void uart1_rx_cb(const struct device *dev, void *user_data)
 {
 	// usart_IntHandler(&hci_handle);
+}
+
+uint32_t GPIOC_DATA;
+
+void user_entry_before_sleep(void)
+{
+    USART2->DR = 's';
+    system_delay_us(10);
+    *(uint32_t *)0x50210010 = 1;
+    gpio_status_latch_enable();
+    GPIOC_DATA = *(uint32_t *)0x50210008;
+}
+void user_entry_after_sleep(void)
+{
+    __SYSTEM_USART2_CLK_ENABLE();
+    __SYSTEM_GPIOC_CLK_ENABLE();
+    *(uint32_t *)0x50210008 = GPIOC_DATA | 0x00000001;
+    *(uint32_t *)0x50210014 = 1;
+
+    *(uint32_t *)0x50210000 &= ~((1 << 13) | 1);
+    *(uint32_t *)0xE0052080 = 0x1100;
+    uint32_t *P = (uint32_t *)UART2_BASE;
+    P[1] = 0x03;
+    P[2] = 0x02;
+    P[3] = 0x1C;
+    P[4] = 0x01;
+    P[5] = 0x0C;
+    P[9] = 0x0101;
+    gpio_status_latch_disable();
+    USART2->DR = 'w';
+    system_delay_us(10);
 }
 
 int main(void)
@@ -157,14 +196,32 @@ int main(void)
 		printf("UART1 RX callback registered\n");
 	}
 
+    /* do calibration, get current RC frequency */
+    __SYSTEM_CALI_CLK_ENABLE();
+    __SYSTEM_CALI_SRC_SEL(CALI_SRC_CLK_SEL_LPRC);
+    CALI_HandleTypeDef cali_handle;
+    cali_handle.mode = CALI_UP_MODE_NORMAL;
+    cali_handle.rc_cnt = 200;
+    cali_init(&cali_handle);
+    system_set_LPRCCLK(cali_calc_rc_freq(&cali_handle, cali_start(&cali_handle)));
+    __SYSTEM_CALI_CLK_DISABLE();
+
 	struct k_timer led_timer;
 	k_timer_init(&led_timer, led_timer_cb, NULL);
 	k_timer_start(&led_timer, K_MSEC(200), K_MSEC(200));
 
+    ool_write(PMU_REG_CPI_SLP_ON, 0x80);
 	// freq_controller_task();
-
+    printf("RAM:%02X\n", ool_read(PMU_REG_BLOCKS_MASK_CTRL_4));
+    ool_write(PMU_REG_CPI_SLP_ON, 0);
 	/* ====== BLE 广播例程 ====== */
 	bluetooth_adv_demo();
+
+
+    irq_connect_dynamic(PMU_IRQn, 2, PMU_IRQHandler_dynamic, NULL, 0);
+    irq_enable(PMU_IRQn);
+
+    system_sleep_enable();
 
 	while (1)
 	{
