@@ -24,10 +24,14 @@ CONFIG_SHELL_BACKEND_SERIAL_API_INTERRUPT_DRIVEN=y
 CONFIG_SHELL_BACKEND_SERIAL_TX_RING_BUFFER_SIZE=64
 CONFIG_SHELL_BACKEND_SERIAL_RX_RING_BUFFER_SIZE=64
 
+# --- 电源管理 ---
+CONFIG_PM=y                            # 系统 PM 基础（depends on SYS_CLOCK_EXISTS && HAS_PM）
+CONFIG_PM_DEVICE=y                     # 设备电源管理接口
+CONFIG_PM_DEVICE_SYSTEM_MANAGED=y      # 系统级自动管理（睡眠时自动挂起所有设备）
+CONFIG_PM_DEVICE_RUNTIME=y             # 运行时 PM：单设备 get/put 引用计数
+
 # --- 中断 ---
 CONFIG_DYNAMIC_INTERRUPTS=y
-# --- 电源管理 ---
-CONFIG_PM=y
 # --- GPIO ---
 CONFIG_GPIO=y
 CONFIG_LED=y

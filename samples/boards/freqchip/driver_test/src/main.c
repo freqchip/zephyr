@@ -4,10 +4,12 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+
 #include <stdint.h>
 #include <stdio.h>
 
 #include <zephyr/kernel.h>
+#include "zephyr/pm/pm.h"
 #include <zephyr/irq.h>
 #include <zephyr/drivers/adc.h>
 #include <zephyr/drivers/gpio.h>
@@ -56,6 +58,10 @@ static const struct device *wdt        = DEVICE_DT_GET(DT_NODELABEL(wdt));
 #define LED_RED_IDX DT_NODE_CHILD_IDX(DT_NODELABEL(red_led))
 
 static struct gpio_callback button_cb_data;
+void button_pressed_callback(const struct device *dev, struct gpio_callback *cb, gpio_port_pins_t pins)
+{
+	// printf("button pressed\n");
+}
 
 void PMU_IRQHandler(void);
 void PMU_IRQHandler_dynamic(const void *dev)
@@ -63,10 +69,40 @@ void PMU_IRQHandler_dynamic(const void *dev)
     PMU_IRQHandler();
 }
 
-void button_pressed_callback(const struct device *dev, struct gpio_callback *cb, gpio_port_pins_t pins)
+static void on_state_entry(enum pm_state state)
 {
-	printf("button pressed\n");
+    // if (state == PM_STATE_SUSPEND_TO_RAM)
+    // {
+    //     USART2->DR = 's';
+    //     system_delay_us(10);
+
+    //     // gpio_status_latch_enable();
+    // }
 }
+static void on_state_exit(enum pm_state state)
+{
+    // gpio_status_latch_disable();
+    if (state == PM_STATE_SUSPEND_TO_RAM)
+    {
+        // __SYSTEM_USART2_CLK_ENABLE();
+        // *(uint32_t *)0xE0052080 = 0x1100;
+        // uint32_t *P = (uint32_t *)UART2_BASE;
+        // P[1] = 0x03;
+        // P[2] = 0x02;
+        // P[3] = 0x1C;
+        // P[4] = 0x01;
+        // P[5] = 0x0C;
+        // P[9] = 0x0101;
+        // // gpio_status_latch_disable();
+
+        // USART2->DR = 'w';
+        // system_delay_us(10);
+    }
+}
+static struct pm_notifier app_pm_notifier = {
+	.state_entry = on_state_entry,
+	.state_exit  = on_state_exit,
+};
 
 void can_tx_cb(const struct device *dev, int error, void *user_data)
 {
@@ -83,7 +119,8 @@ void can_rx_cb(const struct device *dev, struct can_frame *frame, void *user_dat
 static void led_timer_cb(struct k_timer *timer)
 {
 	static bool led_state;
-
+GPIOC->GPIO_TOG = 1 << 14;
+GPIOC->GPIO_TOG = 1 << 14;
 	led_state = !led_state;
 	if (led_state) {
 		led_on(led_dev, LED_RED_IDX);
@@ -109,27 +146,42 @@ void user_entry_before_sleep(void)
 {
     USART2->DR = 's';
     system_delay_us(10);
-    *(uint32_t *)0x50210010 = 1;
-    gpio_status_latch_enable();
-    GPIOC_DATA = *(uint32_t *)0x50210008;
+    // gpio_status_latch_enable();
+    // GPIOC_DATA = *(uint32_t *)0x50210008;
 }
-void user_entry_after_sleep(void)
+void user_entry_after_sleep_device_ready(void)
 {
-    __SYSTEM_USART2_CLK_ENABLE();
-    __SYSTEM_GPIOC_CLK_ENABLE();
-    *(uint32_t *)0x50210008 = GPIOC_DATA | 0x00000001;
-    *(uint32_t *)0x50210014 = 1;
+    // __SYSTEM_USART2_CLK_ENABLE();
+    // // __SYSTEM_GPIOC_CLK_ENABLE();
+    // // *(uint32_t *)0x50210008 = GPIOC_DATA | 0x00000001;
+    // // *(uint32_t *)0x50210014 = 1;
+    // // *(uint32_t *)0x50210000 &= ~((1 << 13) | 1);
 
-    *(uint32_t *)0x50210000 &= ~((1 << 13) | 1);
-    *(uint32_t *)0xE0052080 = 0x1100;
-    uint32_t *P = (uint32_t *)UART2_BASE;
-    P[1] = 0x03;
-    P[2] = 0x02;
-    P[3] = 0x1C;
-    P[4] = 0x01;
-    P[5] = 0x0C;
-    P[9] = 0x0101;
-    gpio_status_latch_disable();
+
+    // *(uint32_t *)0xE0052080 = 0x1100;
+    // uint32_t *P = (uint32_t *)UART2_BASE;
+    // P[1] = 0x03;
+    // P[2] = 0x02;
+    // P[3] = 0x1C;
+    // P[4] = 0x01;
+    // P[5] = 0x0C;
+    // P[9] = 0x0101;
+
+    // // gpio_status_latch_disable();
+    // USART2->DR = 'w';
+    // system_delay_us(10);
+
+    // __SYSTEM_USART2_CLK_ENABLE();
+    // *(uint32_t *)0xE0052080 = 0x1100;
+    // uint32_t *P = (uint32_t *)UART2_BASE;
+    // P[1] = 0x03;
+    // P[2] = 0x02;
+    // P[3] = 0x1C;
+    // P[4] = 0x01;
+    // P[5] = 0x0C;
+    // P[9] = 0x0101;
+    // gpio_status_latch_disable();
+
     USART2->DR = 'w';
     system_delay_us(10);
 }
@@ -137,9 +189,30 @@ void user_entry_after_sleep(void)
 int main(void)
 {
 	__stdout_hook_install(uart_putchar);
+    
+    pm_notifier_register(&app_pm_notifier);
 
 	printf("\n");
 	printf("Driver Test! %s\n", CONFIG_BOARD_TARGET);
+
+    if (!device_is_ready(gpioa_dev)){
+		printf("Error: gpioa_dev device not ready\n");
+	}
+	else{
+		printf("gpioa_dev ready!\n");
+	}
+    if (!device_is_ready(gpiob_dev)){
+		printf("Error: gpiob_dev device not ready\n");
+	}
+	else{
+		printf("gpiob_dev ready!\n");
+	}
+    if (!device_is_ready(gpioc_dev)){
+		printf("Error: gpioc_dev device not ready\n");
+	}
+	else{
+		printf("gpioc_dev ready!\n");
+	}
 
 	if (!device_is_ready(adc)){
 		printf("Error: adc device not ready\n");
@@ -155,40 +228,6 @@ int main(void)
 		printf("I2C0 ready!\n");
 	}
 
-
-	can_start(can_dev);
-
-	struct can_filter rx_filter1 = {
-		.flags = 0,           // 标准帧
-		.id    = 0x111,       // 匹配 ID
-		.mask  = 0x7FF,       // 全匹配
-	};
-	int ret = can_add_rx_filter(can_dev, can_rx_cb, NULL, &rx_filter1);
-	printf("rx_filter ret:%d\n", ret);
-
-	struct can_filter rx_filter2 = {
-		.flags = 0,           // 标准帧
-		.id    = 0x222,       // 匹配 ID
-		.mask  = 0x7FF,       // 全匹配
-	};
-	ret = can_add_rx_filter(can_dev, can_rx_cb, NULL, &rx_filter2);
-	printf("rx_filter ret:%d\n", ret);
-
-	struct can_frame frame = {0};
-	frame.id = 0x123;
-	frame.dlc = 8;
-	frame.flags = 0;
-	frame.data[0] = 0x11;
-	frame.data[1] = 0x22;
-	frame.data[2] = 0x33;
-	frame.data[3] = 0x44;
-	frame.data[4] = 0x55;
-	frame.data[5] = 0x66;
-	frame.data[6] = 0x77;
-	frame.data[7] = 0x88;
-	ret = can_send(can_dev, &frame, K_MSEC(100), can_tx_cb, NULL);
-	printf("can_send ret:%d\n", ret);
-
 	/* UART1 中断接收 */
 	if (device_is_ready(usart1_dev)) {
 		uart_irq_callback_set(usart1_dev, uart1_rx_cb);
@@ -201,7 +240,7 @@ int main(void)
     __SYSTEM_CALI_SRC_SEL(CALI_SRC_CLK_SEL_LPRC);
     CALI_HandleTypeDef cali_handle;
     cali_handle.mode = CALI_UP_MODE_NORMAL;
-    cali_handle.rc_cnt = 200;
+    cali_handle.rc_cnt = 300;
     cali_init(&cali_handle);
     system_set_LPRCCLK(cali_calc_rc_freq(&cali_handle, cali_start(&cali_handle)));
     __SYSTEM_CALI_CLK_DISABLE();
@@ -210,21 +249,29 @@ int main(void)
 	k_timer_init(&led_timer, led_timer_cb, NULL);
 	k_timer_start(&led_timer, K_MSEC(200), K_MSEC(200));
 
-    ool_write(PMU_REG_CPI_SLP_ON, 0x80);
-	// freq_controller_task();
-    printf("RAM:%02X\n", ool_read(PMU_REG_BLOCKS_MASK_CTRL_4));
-    ool_write(PMU_REG_CPI_SLP_ON, 0);
+    gpio_pin_configure(gpioc_dev, 14, GPIO_OUTPUT);
+
+    void gpio_demo(void);
+    gpio_demo();
 	/* ====== BLE 广播例程 ====== */
 	bluetooth_adv_demo();
-
 
     irq_connect_dynamic(PMU_IRQn, 2, PMU_IRQHandler_dynamic, NULL, 0);
     irq_enable(PMU_IRQn);
 
     system_sleep_enable();
+    // system_sleep_disable();
 
+    uint32_t count = 0;
+    printf("NVIC:%d, count=%d\n", NVIC_GetPriority(GPIOA_IRQn), count);
 	while (1)
 	{
+        count++;
+        if (count == 60)
+        {
+            system_sleep_disable();
+            printf("system_sleep_disable");
+        }
 		k_sleep(K_MSEC(1000));
 	}
 
@@ -270,18 +317,17 @@ static void bluetooth_adv_demo(void)
 	printf("Advertising started\n");
 }
 
-void agio_demo(void)
+void gpio_demo(void)
 {
-	gpio_init_callback(&button_cb_data, button_pressed_callback, BIT(10));
+	gpio_pin_configure(gpioa_dev, 0, GPIO_INPUT | GPIO_PULL_UP);
+	gpio_pin_interrupt_configure(gpioa_dev, 0, GPIO_INT_LEVEL_LOW);
+    
+	gpio_init_callback(&button_cb_data, button_pressed_callback, BIT(0));
 	gpio_add_callback(gpioa_dev, &button_cb_data);
 }
 
 void adc_demo(void)
 {
-/**/
-	gpio_pin_configure(gpioa_dev, 10, GPIO_INPUT | GPIO_PULL_UP);
-	gpio_pin_interrupt_configure(gpioa_dev, 10, GPIO_INT_LEVEL_LOW);
-
 	uint16_t adc_buf[2];
 
 	struct adc_sequence seq = {
@@ -357,3 +403,40 @@ void i2c_demo(void)
 		printf("I2C transfer error: %d\n", ret);
 	}
 }
+
+void can_demo(void)
+{
+	can_start(can_dev);
+
+	struct can_filter rx_filter1 = {
+		.flags = 0,           // 标准帧
+		.id    = 0x111,       // 匹配 ID
+		.mask  = 0x7FF,       // 全匹配
+	};
+	int ret = can_add_rx_filter(can_dev, can_rx_cb, NULL, &rx_filter1);
+	printf("rx_filter ret:%d\n", ret);
+
+	struct can_filter rx_filter2 = {
+		.flags = 0,           // 标准帧
+		.id    = 0x222,       // 匹配 ID
+		.mask  = 0x7FF,       // 全匹配
+	};
+	ret = can_add_rx_filter(can_dev, can_rx_cb, NULL, &rx_filter2);
+	printf("rx_filter ret:%d\n", ret);
+
+	struct can_frame frame = {0};
+	frame.id = 0x123;
+	frame.dlc = 8;
+	frame.flags = 0;
+	frame.data[0] = 0x11;
+	frame.data[1] = 0x22;
+	frame.data[2] = 0x33;
+	frame.data[3] = 0x44;
+	frame.data[4] = 0x55;
+	frame.data[5] = 0x66;
+	frame.data[6] = 0x77;
+	frame.data[7] = 0x88;
+	ret = can_send(can_dev, &frame, K_MSEC(100), can_tx_cb, NULL);
+	printf("can_send ret:%d\n", ret);
+}
+

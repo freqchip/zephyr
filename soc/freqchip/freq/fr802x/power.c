@@ -20,7 +20,7 @@
 #define UART_PUT_CHAR(c)     USART2->DR = c
 #define MINUS_DEEP_SLEEP_TIME                   3
 
-#define PM_NVIC_SHPR3_REG                    ( *( ( volatile uint32_t * ) 0xe000ed20 ) )
+#define PM_NVIC_SHPR3_REG                    (*( ( volatile uint32_t * ) 0xe000ed20 ))
 
 uint8_t calc_sleep_time_controller(int32_t *sleep_duration, uint32_t *base, uint16_t *fine);
 /* base: BIT0~27 is valid, unit is 312.5us; fine: 0~624, unit is 0.5us */
@@ -47,6 +47,10 @@ __RAM_CODE __WEAK void user_entry_after_sleep_user(void)
 {
 }
 
+__RAM_CODE __WEAK void user_entry_after_sleep_device_ready(void)
+{
+}
+
 static uint32_t event_notify_counter = 0;
 static void (*event_notify_record)(void) = NULL;
 extern void (*ke_event_notify)(void);
@@ -60,7 +64,7 @@ static uint32_t start_basecnt;
 static uint16_t start_finecnt;
 static uint32_t end_basecnt;
 static uint16_t end_finecnt;
-static char     deep_sleep = false;
+char freqchiip_deep_sleep = false;
 /*
  * Zephyr 电源管理入口。该函数在 idle 线程中由 PM 子系统调用，
  * 调用时中断已关闭。必须在 RAM 中执行，因为深度睡眠时 Flash 可能被断电。
@@ -80,7 +84,7 @@ __RAM_CODE void pm_state_set(enum pm_state state, uint8_t substate_id)
     int32_t sleep_duration_hus; // unit 0.5us
     uint32_t xExpectedIdleTime;
 
-    deep_sleep = false;
+    freqchiip_deep_sleep = false;
     int64_t ticks = k_sec_to_ticks_floor64(1000);
 
 	switch (state) 
@@ -125,17 +129,22 @@ __RAM_CODE void pm_state_set(enum pm_state state, uint8_t substate_id)
                     || (system_prevent_sleep_get() != 0)
                     || (user_deep_sleep_check()==false)) {   // enter light sleep mode
 
-                    deep_sleep = false;
+                    freqchiip_deep_sleep = false;
 
                     __set_BASEPRI(0);
                     __DSB();
                     __WFI();
                     __ISB();
                 }
-                else {    // enter deep sleep mode
-                    deep_sleep = true;
+                else    // enter deep sleep mode
+                {    
+                    freqchiip_deep_sleep = true;
                     /* notice APP layer that system will enter deep sleep mode */
                     user_entry_before_sleep();
+
+                    /* gpio status lock */
+                    if (gpio_status_auto_latch_get())
+                        gpio_status_latch_enable();
                     /* 
                     * put flash into deep sleep mode as soon as possible, so no more time
                     */
@@ -310,9 +319,14 @@ __RAM_CODE void pm_state_exit_post_ops(enum pm_state state, uint8_t substate_id)
     ARG_UNUSED(substate_id);
 
     uint32_t us;
-    if (deep_sleep == true)
+    if (freqchiip_deep_sleep == true)
     {
-        deep_sleep = false;
+        freqchiip_deep_sleep = false;
+
+        /* gpio status unlock */
+        if (gpio_status_auto_latch_get())
+            gpio_status_latch_disable();
+
         /* get current baseband counter, used to recover system tick. */
         bb_counter_get(&end_basecnt, &end_finecnt);
         if (start_finecnt > end_finecnt) {
@@ -327,6 +341,8 @@ __RAM_CODE void pm_state_exit_post_ops(enum pm_state state, uint8_t substate_id)
         sys_clock_announce(dticks);
         /* 恢复系统tick */
         SysTick->CTRL = SysTick_CTRL_ENABLE_Msk | SysTick_CTRL_TICKINT_Msk | SysTick_CTRL_CLKSOURCE_Msk;
+
+        user_entry_after_sleep_device_ready();
     }
 
     /* Clear PRIMASK */

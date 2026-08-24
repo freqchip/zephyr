@@ -4,17 +4,24 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+#include "system_fr802x.h"
+#include <stdbool.h>
+#include <stdint.h>
+#include <stdio.h>
 #define DT_DRV_COMPAT freqchip_freqchip_gpio
 
 #include <zephyr/drivers/gpio.h>
 #include <zephyr/drivers/gpio/gpio_utils.h>
 #include <zephyr/irq.h>
+#include <zephyr/pm/device.h>
 
 #include <driver_gpio.h>
 
 struct gpio_freqchip_config {
 	struct gpio_driver_config common;
 	uint32_t *base;
+    uint8_t irq_num;
+    uint8_t irq_prio;
 };
 
 struct gpio_freqchip_data {
@@ -23,13 +30,9 @@ struct gpio_freqchip_data {
 	GPIO_TypeDef *GPIOx;
 };
 
-static const struct device *gpioa_isr_dev;
-static const struct device *gpiob_isr_dev;
-static const struct device *gpioc_isr_dev;
-
 static void gpioa_freqchip_isr(const void *arg)
 {
-	const struct device *dev = gpioa_isr_dev;
+	const struct device *dev = (const struct device *)arg;
 	struct gpio_freqchip_data *data = dev->data;
 	uint32_t int_status;
 
@@ -37,11 +40,10 @@ static void gpioa_freqchip_isr(const void *arg)
 		data->GPIOx->GPIO_INTS = int_status;
 		gpio_fire_callbacks(&data->callbacks, dev, int_status);
 	}
-	(void)arg;
 }
 static void gpiob_freqchip_isr(const void *arg)
 {
-	const struct device *dev = gpiob_isr_dev;
+	const struct device *dev = (const struct device *)arg;
 	struct gpio_freqchip_data *data = dev->data;
 	uint32_t int_status;
 
@@ -49,11 +51,10 @@ static void gpiob_freqchip_isr(const void *arg)
 		data->GPIOx->GPIO_INTS = int_status;
 		gpio_fire_callbacks(&data->callbacks, dev, int_status);
 	}
-	(void)arg;
 }
 static void gpioc_freqchip_isr(const void *arg)
 {
-	const struct device *dev = gpioc_isr_dev;
+	const struct device *dev = (const struct device *)arg;
 	struct gpio_freqchip_data *data = dev->data;
 	uint32_t int_status;
 
@@ -61,7 +62,6 @@ static void gpioc_freqchip_isr(const void *arg)
 		data->GPIOx->GPIO_INTS = int_status;
 		gpio_fire_callbacks(&data->callbacks, dev, int_status);
 	}
-	(void)arg;
 }
 
 static int gpio_freqchip_configure(const struct device *port, gpio_pin_t pin, gpio_flags_t flags)
@@ -246,34 +246,192 @@ static int gpio_freqchip_manage_callback(const struct device *dev, struct gpio_c
 	return gpio_manage_callback(&data->callbacks, callback, set);
 }
 
+#ifdef CONFIG_PM_DEVICE
+
+extern char freqchiip_deep_sleep;
+
+struct gpio_reg_backup_t {
+    uint32_t GPIOA_REG[6];
+    uint32_t GPIOA_CTRL[12];
+    uint32_t GPIOB_REG[6];
+    uint32_t GPIOB_CTRL[12];
+    uint32_t GPIOC_REG[6];
+    uint32_t GPIOC_CTRL[12];
+    uint8_t  GPIOA_IRQ_PRIO;
+    uint8_t  GPIOB_IRQ_PRIO;
+    uint8_t  GPIOC_IRQ_PRIO;
+    bool reg_valid[3];   /* 仅真实挂起备份过才恢复寄存器，避免初始化时用空数据覆盖 */
+};
+static struct gpio_reg_backup_t reg_backup;
+
+static int gpio_freqchip_pm_action(const struct device *dev, enum pm_device_action action)
+{
+    const struct gpio_freqchip_config *cfg = dev->config;
+	struct gpio_freqchip_data *data = dev->data;
+    uint32_t *P;
+    int i;
+
+    switch (action) 
+    {
+        case PM_DEVICE_ACTION_SUSPEND:
+        {
+            if (data->GPIOx == GPIOA){
+                reg_backup.GPIOA_REG[0] = GPIOA->GPIO_OEN;
+                reg_backup.GPIOA_REG[1] = GPIOA->GPIO_ODR;
+                reg_backup.GPIOA_REG[2] = GPIOA->GPIO_OLCKR;
+                reg_backup.GPIOA_REG[3] = GPIOA->GPIO_INTE;
+                reg_backup.GPIOA_REG[4] = GPIOA->GPIO_INTTL;
+                reg_backup.GPIOA_REG[5] = GPIOA->GPIO_INTTH;
+
+                P = (uint32_t *)&SYSTEM->GPIOA_CTRL;
+                for (i = 0; i < 12; i++){
+                    reg_backup.GPIOA_CTRL[i] = P[i];
+                }
+                reg_backup.GPIOA_IRQ_PRIO = NVIC_GetPriority(cfg->irq_num);
+                reg_backup.reg_valid[0] = true;
+            }
+            else if (data->GPIOx == GPIOB){
+                reg_backup.GPIOB_REG[0] = GPIOB->GPIO_OEN;
+                reg_backup.GPIOB_REG[1] = GPIOB->GPIO_ODR;
+                reg_backup.GPIOB_REG[2] = GPIOB->GPIO_OLCKR;
+                reg_backup.GPIOB_REG[3] = GPIOB->GPIO_INTE;
+                reg_backup.GPIOB_REG[4] = GPIOB->GPIO_INTTL;
+                reg_backup.GPIOB_REG[5] = GPIOB->GPIO_INTTH;
+
+                P = (uint32_t *)&SYSTEM->GPIOB_CTRL;
+                for (i = 0; i < 12; i++){
+                    reg_backup.GPIOB_CTRL[i] = P[i];
+                }
+                reg_backup.GPIOB_IRQ_PRIO = NVIC_GetPriority(cfg->irq_num);
+                reg_backup.reg_valid[1] = true;
+            }
+            else if (data->GPIOx == GPIOC){
+                reg_backup.GPIOC_REG[0] = GPIOC->GPIO_OEN;
+                reg_backup.GPIOC_REG[1] = GPIOC->GPIO_ODR;
+                reg_backup.GPIOC_REG[2] = GPIOC->GPIO_OLCKR;
+                reg_backup.GPIOC_REG[3] = GPIOC->GPIO_INTE;
+                reg_backup.GPIOC_REG[4] = GPIOC->GPIO_INTTL;
+                reg_backup.GPIOC_REG[5] = GPIOC->GPIO_INTTH;
+
+                P = (uint32_t *)&SYSTEM->GPIOC_CTRL;
+                for (i = 0; i < 12; i++){
+                    reg_backup.GPIOC_CTRL[i] = P[i];
+                }
+                reg_backup.GPIOC_IRQ_PRIO = NVIC_GetPriority(cfg->irq_num);
+                reg_backup.reg_valid[2] = true;
+            }
+        }break;
+
+        case PM_DEVICE_ACTION_RESUME:
+        {
+            if (freqchiip_deep_sleep == false)
+                return 0;
+
+            if (data->GPIOx == GPIOA) {
+                if (reg_backup.reg_valid[0]){
+                    reg_backup.reg_valid[0] = false;
+
+                    __SYSTEM_GPIOA_CLK_ENABLE();
+                    GPIOA->GPIO_ODR   = reg_backup.GPIOA_REG[1];
+                    GPIOA->GPIO_OEN   = reg_backup.GPIOA_REG[0];
+                    GPIOA->GPIO_INTTL = reg_backup.GPIOA_REG[4];
+                    GPIOA->GPIO_INTTH = reg_backup.GPIOA_REG[5];
+                    GPIOA->GPIO_INTE  = reg_backup.GPIOA_REG[3];
+                    GPIOA->GPIO_OLCKR = reg_backup.GPIOA_REG[2];
+
+                    P = (uint32_t *)&SYSTEM->GPIOA_CTRL;
+                    for (i = 0; i < 12; i++){
+                        P[i] = reg_backup.GPIOA_CTRL[i];
+                    }
+                    NVIC_SetPriority(cfg->irq_num, reg_backup.GPIOA_IRQ_PRIO);
+                    irq_enable(cfg->irq_num);
+                }
+            } 
+            else if (data->GPIOx == GPIOB) {
+                if (reg_backup.reg_valid[1]){
+                    reg_backup.reg_valid[1] = false;
+
+                    __SYSTEM_GPIOB_CLK_ENABLE();
+                    GPIOB->GPIO_ODR   = reg_backup.GPIOB_REG[1];
+                    GPIOB->GPIO_OEN   = reg_backup.GPIOB_REG[0];
+                    GPIOB->GPIO_INTTL = reg_backup.GPIOB_REG[4];
+                    GPIOB->GPIO_INTTH = reg_backup.GPIOB_REG[5];
+                    GPIOB->GPIO_INTE  = reg_backup.GPIOB_REG[3];
+                    GPIOB->GPIO_OLCKR = reg_backup.GPIOB_REG[2];
+
+                    P = (uint32_t *)&SYSTEM->GPIOB_CTRL;
+                    for (i = 0; i < 12; i++){
+                        P[i] = reg_backup.GPIOB_CTRL[i];
+                    }
+                    NVIC_SetPriority(cfg->irq_num, reg_backup.GPIOB_IRQ_PRIO);
+                    irq_enable(cfg->irq_num);
+                }
+            } 
+            else if (data->GPIOx == GPIOC) {
+                if (reg_backup.reg_valid[2]){
+                        reg_backup.reg_valid[2] = false;
+
+                    __SYSTEM_GPIOC_CLK_ENABLE();
+                    GPIOC->GPIO_ODR   = reg_backup.GPIOC_REG[1];
+                    GPIOC->GPIO_OEN   = reg_backup.GPIOC_REG[0];
+                    GPIOC->GPIO_INTTL = reg_backup.GPIOC_REG[4];
+                    GPIOC->GPIO_INTTH = reg_backup.GPIOC_REG[5];
+                    GPIOC->GPIO_INTE  = reg_backup.GPIOC_REG[3];
+                    GPIOC->GPIO_OLCKR = reg_backup.GPIOC_REG[2];
+
+                    P = (uint32_t *)&SYSTEM->GPIOC_CTRL;
+                    for (i = 0; i < 12; i++){
+                        P[i] = reg_backup.GPIOC_CTRL[i];
+                    }
+                    NVIC_SetPriority(cfg->irq_num, reg_backup.GPIOC_IRQ_PRIO);
+                    irq_enable(cfg->irq_num);
+                }
+            }
+        }break;
+
+        case PM_DEVICE_ACTION_TURN_ON:
+        case PM_DEVICE_ACTION_TURN_OFF:
+            return 0;
+
+        default: return -ENOTSUP;
+	}
+	return 0;
+}
+#endif /* CONFIG_PM_DEVICE */
+
 static int gpio_freqchip_init(const struct device *dev)
 {
 	const struct gpio_freqchip_config *cfg = dev->config;
 	struct gpio_freqchip_data *data = dev->data;
+	int ret = 0;
 
 #ifdef CONFIG_SOC_SERIES_FR802X
-	if (cfg->base == (uint32_t *)DT_REG_ADDR(DT_NODELABEL(gpioa))) {
-		data->GPIOx = GPIOA;
-		__SYSTEM_GPIOA_CLK_ENABLE();
-		gpioa_isr_dev = dev;
-	} else if (cfg->base == (uint32_t *)DT_REG_ADDR(DT_NODELABEL(gpiob))) {
-		data->GPIOx = GPIOB;
-		__SYSTEM_GPIOB_CLK_ENABLE();
-		gpiob_isr_dev = dev;
-	} else if (cfg->base == (uint32_t *)DT_REG_ADDR(DT_NODELABEL(gpioc))) {
-		data->GPIOx = GPIOC;
-		__SYSTEM_GPIOC_CLK_ENABLE();
-		gpioc_isr_dev = dev;
-	}
-	IRQ_CONNECT(DT_INST_IRQN(0), DT_INST_IRQ(0, priority), gpioa_freqchip_isr, NULL, 0);
-	IRQ_CONNECT(DT_INST_IRQN(1), DT_INST_IRQ(1, priority), gpiob_freqchip_isr, NULL, 0);
-	IRQ_CONNECT(DT_INST_IRQN(2), DT_INST_IRQ(2, priority), gpioc_freqchip_isr, NULL, 0);
-	irq_enable(DT_INST_IRQN(0));
-	irq_enable(DT_INST_IRQN(1));
-	irq_enable(DT_INST_IRQN(2));
+    if (cfg->base == (uint32_t *)DT_REG_ADDR(DT_NODELABEL(gpioa))) {
+        data->GPIOx = GPIOA;
+        __SYSTEM_GPIOA_CLK_ENABLE();
+        irq_connect_dynamic(cfg->irq_num, cfg->irq_prio, gpioa_freqchip_isr, dev, 0);
+    } 
+    else if (cfg->base == (uint32_t *)DT_REG_ADDR(DT_NODELABEL(gpiob))) {
+        data->GPIOx = GPIOB;
+        __SYSTEM_GPIOB_CLK_ENABLE();
+        irq_connect_dynamic(cfg->irq_num, cfg->irq_prio, gpiob_freqchip_isr, dev, 0);
+    } 
+    else if (cfg->base == (uint32_t *)DT_REG_ADDR(DT_NODELABEL(gpioc))) {
+        data->GPIOx = GPIOC;
+        __SYSTEM_GPIOC_CLK_ENABLE();
+        irq_connect_dynamic(cfg->irq_num, cfg->irq_prio, gpioc_freqchip_isr, dev, 0);
+    }
+    irq_enable(cfg->irq_num);
 #endif
 
-	return 0;
+#ifdef CONFIG_PM_DEVICE
+	/* 初始化设备 PM 状态 */
+	ret = pm_device_driver_init(dev, gpio_freqchip_pm_action);
+#endif
+
+    gpio_status_auto_latch_enable(true);
+
+	return ret;
 }
 
 static const struct gpio_driver_api gpio_freqchip_api = {
@@ -292,12 +450,17 @@ static const struct gpio_driver_api gpio_freqchip_api = {
 		.common = {						                                       \
 			.port_pin_mask = GPIO_PORT_PIN_MASK_FROM_DT_INST(n),               \
 		},							                                           \
-		.base = (uint32_t *)DT_INST_REG_ADDR(n), 		       			       \
+		.base = (uint32_t *)DT_INST_REG_ADDR(n),                               \
+        .irq_num  = DT_INST_IRQN(n),                                           \
+        .irq_prio = DT_INST_IRQ(n, priority),                                  \
 	};								                                           \
 									                                           \
 	static struct gpio_freqchip_data gpio_freqchip_data##n;			           \
 									                                           \
-	DEVICE_DT_INST_DEFINE(n, gpio_freqchip_init, NULL, &gpio_freqchip_data##n, \
+	PM_DEVICE_DT_INST_DEFINE(n, gpio_freqchip_pm_action);		               \
+									                                           \
+	DEVICE_DT_INST_DEFINE(n, gpio_freqchip_init, PM_DEVICE_DT_INST_GET(n),     \
+			             &gpio_freqchip_data##n,	                           \
 			             &gpio_freqchip_config##n, PRE_KERNEL_1,	           \
 			             CONFIG_GPIO_INIT_PRIORITY, &gpio_freqchip_api);
 

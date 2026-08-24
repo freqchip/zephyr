@@ -4,12 +4,14 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+#include <stdint.h>
 #define DT_DRV_COMPAT freqchip_freqchip_usart
 
 #include <zephyr/irq.h>
 #include <zephyr/drivers/pinctrl.h>
 #include <zephyr/drivers/reset.h>
 #include <zephyr/drivers/uart.h>
+#include <zephyr/pm/device.h>
 
 #include <driver_usart.h>
 
@@ -178,6 +180,198 @@ static void usart3_freq_isr(const void *arg)
 }
 #endif /* CONFIG_UART_INTERRUPT_DRIVEN */
 
+#ifdef CONFIG_PM_DEVICE
+
+#define USART_REG_RD(reg)    (*(volatile uint32_t *)&(reg))
+#define USART_REG_WR(reg, v) (*(volatile uint32_t *)&(reg) = (v))
+
+struct usart_reg_backup_t {
+    uint32_t USART0_REG[10];
+    uint32_t USART1_REG[10];
+    uint32_t USART2_REG[10];
+    uint32_t USART3_REG[10];
+    uint8_t USARTx_IRQ_PRIO[4];
+    bool USARTx_INT[4];
+    bool reg_valid[4];    /* 仅真实挂起备份过才恢复寄存器，避免初始化时用空数据覆盖 */
+};
+static struct usart_reg_backup_t reg_backup;
+
+static int usart_freq_pm_action(const struct device *dev, enum pm_device_action action)
+{
+    const struct freq_usart_config *cfg = (const struct freq_usart_config *)dev->config;
+	struct freq_usart_data *data = dev->data;
+	struct_USART_t *USARTx = data->hUSARTx.USARTx;
+
+	switch (action) 
+    {
+        case PM_DEVICE_ACTION_SUSPEND:
+        {
+            if (USARTx == USART0){
+                reg_backup.USART0_REG[0] = USART_REG_RD(USART0->CTRL0);
+                reg_backup.USART0_REG[1] = USART_REG_RD(USART0->CTRL1);
+                reg_backup.USART0_REG[2] = USART_REG_RD(USART0->CTRL2);
+                reg_backup.USART0_REG[3] = USART0->BAUDRATE;
+                reg_backup.USART0_REG[4] = USART0->MCR;
+                reg_backup.USART0_REG[5] = USART_REG_RD(USART0->FFCR);
+                reg_backup.USART0_REG[6] = USART_REG_RD(USART0->DEC);
+                reg_backup.USART0_REG[7] = USART_REG_RD(USART0->SC_CTRL);
+                reg_backup.USART0_REG[8] = USART0->SC_OSC_CFG;
+                reg_backup.USART0_REG[9] = USART0->SC_WT;
+
+                reg_backup.USARTx_IRQ_PRIO[0] = NVIC_GetPriority(cfg->irq_num);
+                reg_backup.USARTx_INT[0] = NVIC_GetEnableIRQ(cfg->irq_num);
+                reg_backup.reg_valid[0] = true;
+            }
+            else if (USARTx == USART1){
+                reg_backup.USART1_REG[0] = USART_REG_RD(USART1->CTRL0);
+                reg_backup.USART1_REG[1] = USART_REG_RD(USART1->CTRL1);
+                reg_backup.USART1_REG[2] = USART_REG_RD(USART1->CTRL2);
+                reg_backup.USART1_REG[3] = USART1->BAUDRATE;
+                reg_backup.USART1_REG[4] = USART1->MCR;
+                reg_backup.USART1_REG[5] = USART_REG_RD(USART1->FFCR);
+                reg_backup.USART1_REG[6] = USART_REG_RD(USART1->DEC);
+                reg_backup.USART1_REG[7] = USART_REG_RD(USART1->SC_CTRL);
+                reg_backup.USART1_REG[8] = USART1->SC_OSC_CFG;
+                reg_backup.USART1_REG[9] = USART1->SC_WT;
+
+                reg_backup.USARTx_IRQ_PRIO[1] = NVIC_GetPriority(cfg->irq_num);
+                reg_backup.USARTx_INT[1] = NVIC_GetEnableIRQ(cfg->irq_num);
+                reg_backup.reg_valid[1] = true;
+            }
+            else if (USARTx == USART2){
+                reg_backup.USART2_REG[0] = USART_REG_RD(USART2->CTRL0);
+                reg_backup.USART2_REG[1] = USART_REG_RD(USART2->CTRL1);
+                reg_backup.USART2_REG[2] = USART_REG_RD(USART2->CTRL2);
+                reg_backup.USART2_REG[3] = USART2->BAUDRATE;
+                reg_backup.USART2_REG[4] = USART2->MCR;
+                reg_backup.USART2_REG[5] = USART_REG_RD(USART2->FFCR);
+                reg_backup.USART2_REG[6] = USART_REG_RD(USART2->DEC);
+                reg_backup.USART2_REG[7] = USART_REG_RD(USART2->SC_CTRL);
+                reg_backup.USART2_REG[8] = USART2->SC_OSC_CFG;
+                reg_backup.USART2_REG[9] = USART2->SC_WT;
+
+                reg_backup.USARTx_IRQ_PRIO[2] = NVIC_GetPriority(cfg->irq_num);
+                reg_backup.USARTx_INT[2] = NVIC_GetEnableIRQ(cfg->irq_num);
+                reg_backup.reg_valid[2] = true;
+            }
+            else if (USARTx == USART3){
+                reg_backup.USART3_REG[0] = USART_REG_RD(USART3->CTRL0);
+                reg_backup.USART3_REG[1] = USART_REG_RD(USART3->CTRL1);
+                reg_backup.USART3_REG[2] = USART_REG_RD(USART3->CTRL2);
+                reg_backup.USART3_REG[3] = USART3->BAUDRATE;
+                reg_backup.USART3_REG[4] = USART3->MCR;
+                reg_backup.USART3_REG[5] = USART_REG_RD(USART3->FFCR);
+                reg_backup.USART3_REG[6] = USART_REG_RD(USART3->DEC);
+                reg_backup.USART3_REG[7] = USART_REG_RD(USART3->SC_CTRL);
+                reg_backup.USART3_REG[8] = USART3->SC_OSC_CFG;
+                reg_backup.USART3_REG[9] = USART3->SC_WT;
+
+                reg_backup.USARTx_IRQ_PRIO[3] = NVIC_GetPriority(cfg->irq_num);
+                reg_backup.USARTx_INT[3] = NVIC_GetEnableIRQ(cfg->irq_num);
+                reg_backup.reg_valid[3] = true;
+            }
+        }break;
+
+        case PM_DEVICE_ACTION_RESUME:
+        {
+            /* 恢复 USART 时钟 */
+            if (USARTx == USART0) {
+                if (reg_backup.reg_valid[0]){
+                    reg_backup.reg_valid[0] = false;
+
+                    __SYSTEM_USART0_CLK_ENABLE();
+                    USART_REG_WR(USART0->CTRL0,   reg_backup.USART0_REG[0]);
+                    USART_REG_WR(USART0->CTRL1,   reg_backup.USART0_REG[1]);
+                    USART_REG_WR(USART0->CTRL2,   reg_backup.USART0_REG[2]);
+                    USART0->BAUDRATE =            reg_backup.USART0_REG[3];
+                    USART0->MCR      =            reg_backup.USART0_REG[4];
+                    USART_REG_WR(USART0->FFCR,    reg_backup.USART0_REG[5]);
+                    USART_REG_WR(USART0->DEC,     reg_backup.USART0_REG[6]);
+                    USART_REG_WR(USART0->SC_CTRL, reg_backup.USART0_REG[7]);
+                    USART0->SC_OSC_CFG =          reg_backup.USART0_REG[8];
+                    USART0->SC_WT      =          reg_backup.USART0_REG[9];
+
+                    NVIC_SetPriority(cfg->irq_num, reg_backup.USARTx_IRQ_PRIO[0]);
+                    if (reg_backup.USARTx_INT[0])
+                        irq_enable(cfg->irq_num);
+                }
+            } 
+            else if (USARTx == USART1) {
+                if (reg_backup.reg_valid[1]){
+                    reg_backup.reg_valid[1] = false;
+
+                    __SYSTEM_USART1_CLK_ENABLE();
+                    USART_REG_WR(USART1->CTRL0,   reg_backup.USART1_REG[0]);
+                    USART_REG_WR(USART1->CTRL1,   reg_backup.USART1_REG[1]);
+                    USART_REG_WR(USART1->CTRL2,   reg_backup.USART1_REG[2]);
+                    USART1->BAUDRATE =            reg_backup.USART1_REG[3];
+                    USART1->MCR      =            reg_backup.USART1_REG[4];
+                    USART_REG_WR(USART1->FFCR,    reg_backup.USART1_REG[5]);
+                    USART_REG_WR(USART1->DEC,     reg_backup.USART1_REG[6]);
+                    USART_REG_WR(USART1->SC_CTRL, reg_backup.USART1_REG[7]);
+                    USART1->SC_OSC_CFG =          reg_backup.USART1_REG[8];
+                    USART1->SC_WT      =          reg_backup.USART1_REG[9];
+
+                    NVIC_SetPriority(cfg->irq_num, reg_backup.USARTx_IRQ_PRIO[1]);
+                    if (reg_backup.USARTx_INT[1])
+                        irq_enable(cfg->irq_num);
+                }
+            } 
+            else if (USARTx == USART2) {
+                if (reg_backup.reg_valid[2]){
+                    reg_backup.reg_valid[2] = false;
+
+                    __SYSTEM_USART2_CLK_ENABLE();
+                    USART_REG_WR(USART2->CTRL0,   reg_backup.USART2_REG[0]);
+                    USART_REG_WR(USART2->CTRL1,   reg_backup.USART2_REG[1]);
+                    USART_REG_WR(USART2->CTRL2,   reg_backup.USART2_REG[2]);
+                    USART2->BAUDRATE =            reg_backup.USART2_REG[3];
+                    USART2->MCR      =            reg_backup.USART2_REG[4];
+                    USART_REG_WR(USART2->FFCR,    reg_backup.USART2_REG[5]);
+                    USART_REG_WR(USART2->DEC,     reg_backup.USART2_REG[6]);
+                    USART_REG_WR(USART2->SC_CTRL, reg_backup.USART2_REG[7]);
+                    USART2->SC_OSC_CFG =          reg_backup.USART2_REG[8];
+                    USART2->SC_WT      =          reg_backup.USART2_REG[9];
+
+                    NVIC_SetPriority(cfg->irq_num, reg_backup.USARTx_IRQ_PRIO[2]);
+                    if (reg_backup.USARTx_INT[2])
+                        irq_enable(cfg->irq_num);
+                }
+            } 
+            else if (USARTx == USART3) {
+                if (reg_backup.reg_valid[3]){
+                    reg_backup.reg_valid[3] = false;
+
+                    __SYSTEM_USART3_CLK_ENABLE();
+                    USART_REG_WR(USART3->CTRL0,   reg_backup.USART3_REG[0]);
+                    USART_REG_WR(USART3->CTRL1,   reg_backup.USART3_REG[1]);
+                    USART_REG_WR(USART3->CTRL2,   reg_backup.USART3_REG[2]);
+                    USART3->BAUDRATE =            reg_backup.USART3_REG[3];
+                    USART3->MCR      =            reg_backup.USART3_REG[4];
+                    USART_REG_WR(USART3->FFCR,    reg_backup.USART3_REG[5]);
+                    USART_REG_WR(USART3->DEC,     reg_backup.USART3_REG[6]);
+                    USART_REG_WR(USART3->SC_CTRL, reg_backup.USART3_REG[7]);
+                    USART3->SC_OSC_CFG =          reg_backup.USART3_REG[8];
+                    USART3->SC_WT      =          reg_backup.USART3_REG[9];
+
+                    NVIC_SetPriority(cfg->irq_num, reg_backup.USARTx_IRQ_PRIO[3]);
+                    if (reg_backup.USARTx_INT[3])
+                        irq_enable(cfg->irq_num);
+                }
+            }
+        }break;
+
+        case PM_DEVICE_ACTION_TURN_ON:
+        case PM_DEVICE_ACTION_TURN_OFF:
+            return 0;
+
+        default: return -ENOTSUP;
+    }
+
+    return 0;
+}
+#endif /* CONFIG_PM_DEVICE */
+
 static int usart_freq_init(const struct device *dev)
 {
 	int ret;
@@ -223,7 +417,12 @@ static int usart_freq_init(const struct device *dev)
 	irq_enable(cfg->irq_num);
 #endif /* CONFIG_UART_INTERRUPT_DRIVEN */
 
-	return 0;
+#ifdef CONFIG_PM_DEVICE
+	/* 初始化设备 PM 状态 */
+	ret = pm_device_driver_init(dev, usart_freq_pm_action);
+#endif /* CONFIG_PM_DEVICE */
+
+	return ret;
 }
 
 static int usart_freq_poll_in(const struct device *dev, unsigned char *c)
@@ -295,8 +494,10 @@ static const struct uart_driver_api usart_freq_driver_api = {
 		},							                                                \
 	};									                                            \
 																					\
+	PM_DEVICE_DT_INST_DEFINE(n, usart_freq_pm_action);                              \
+																					\
 	DEVICE_DT_INST_DEFINE(n, &usart_freq_init,				                        \
-			              NULL,						                                \
+			              PM_DEVICE_DT_INST_GET(n),						            \
 			              &usart_freq_data_##n,				                        \
 			              &usart_freq_config_##n, PRE_KERNEL_1,                     \
 			              CONFIG_SERIAL_INIT_PRIORITY,			                    \
