@@ -182,6 +182,7 @@ static void usart3_freq_isr(const void *arg)
 
 #ifdef CONFIG_PM_DEVICE
 
+extern char freqchiip_deep_sleep;
 #define USART_REG_RD(reg)    (*(volatile uint32_t *)&(reg))
 #define USART_REG_WR(reg, v) (*(volatile uint32_t *)&(reg) = (v))
 
@@ -274,6 +275,9 @@ static int usart_freq_pm_action(const struct device *dev, enum pm_device_action 
 
         case PM_DEVICE_ACTION_RESUME:
         {
+            if (freqchiip_deep_sleep == false)
+                return 0;
+
             /* 恢复 USART 时钟 */
             if (USARTx == USART0) {
                 if (reg_backup.reg_valid[0]){

@@ -14,6 +14,7 @@
 #include <zephyr/drivers/pinctrl.h>
 #include <zephyr/logging/log.h>
 #include <zephyr/irq.h>
+#include <zephyr/pm/device.h>
 
 #include <driver_i2c.h>
 
@@ -247,6 +248,78 @@ static const struct i2c_driver_api i2c_freqchip_driver_api = {
 	.transfer = i2c_freqchip_transfer,
 };
 
+#ifdef CONFIG_PM_DEVICE
+
+extern char freqchiip_deep_sleep;
+
+#define I2C_REG_RD(reg)    (*(volatile uint32_t *)&(reg))
+#define I2C_REG_WR(reg, v) (*(volatile uint32_t *)&(reg) = (v))
+
+struct i2c_reg_backup_t {
+    uint32_t I2C0_REG[2];
+    uint32_t I2C1_REG[2];
+    bool reg_valid[2];    /* 仅真实挂起备份过才恢复寄存器，避免初始化时用空数据覆盖 */
+};
+static struct i2c_reg_backup_t reg_backup;
+
+static int i2c_freqchip_pm_action(const struct device *dev, enum pm_device_action action)
+{
+    struct i2c_freqchip_data *data = dev->data;
+    struct_I2C_t *I2Cx = data->handle.I2Cx;
+
+    switch (action)
+    {
+        case PM_DEVICE_ACTION_SUSPEND:
+        {
+            if (I2Cx == I2C0){
+                reg_backup.I2C0_REG[0]  = I2C_REG_RD(I2C0->CTRL1);
+                reg_backup.I2C0_REG[1]  = I2C0->ADDR;
+                reg_backup.reg_valid[0] = true;
+            }
+            else if (I2Cx == I2C1){
+                reg_backup.I2C1_REG[0]  = I2C_REG_RD(I2C1->CTRL1);
+                reg_backup.I2C1_REG[1]  = I2C1->ADDR;
+                reg_backup.reg_valid[1] = true;
+            }
+        }break;
+
+        case PM_DEVICE_ACTION_RESUME:
+        {
+            if (freqchiip_deep_sleep == false)
+                return 0;
+
+            if (I2Cx == I2C0) {
+                if (reg_backup.reg_valid[0]){
+                    reg_backup.reg_valid[0] = false;
+
+                    __SYSTEM_I2C0_CLK_ENABLE();
+                    I2C_REG_WR(I2C0->CTRL1, reg_backup.I2C0_REG[0]);
+                    I2C0->ADDR    =         reg_backup.I2C0_REG[1];
+                    I2C0->INTR_EN = 0;
+                }
+            }
+            else if (I2Cx == I2C1) {
+                if (reg_backup.reg_valid[1]){
+                    reg_backup.reg_valid[1] = false;
+
+                    __SYSTEM_I2C1_CLK_ENABLE();
+                    I2C_REG_WR(I2C1->CTRL1, reg_backup.I2C1_REG[0]);
+                    I2C1->ADDR    =         reg_backup.I2C1_REG[1];
+                    I2C1->INTR_EN = 0;
+                }
+            }
+        }break;
+
+        case PM_DEVICE_ACTION_TURN_ON:
+        case PM_DEVICE_ACTION_TURN_OFF:
+            return 0;
+
+        default: return -ENOTSUP;
+	}
+	return 0;
+}
+#endif /* CONFIG_PM_DEVICE */
+
 static int i2c_freqchip_init(const struct device *dev)
 {
 	struct i2c_freqchip_data *data = dev->data;
@@ -270,7 +343,12 @@ static int i2c_freqchip_init(const struct device *dev)
 		return err;
 	}
 
-	return 0;
+#ifdef CONFIG_PM_DEVICE
+	/* 注册设备 PM 回调：系统挂起/恢复时备份/恢复 I2C 寄存器 */
+	err = pm_device_driver_init(dev, i2c_freqchip_pm_action);
+#endif
+
+	return err;
 }
 
 #define I2C_FREQCHIP_INIT(inst)                                              \
@@ -282,8 +360,9 @@ static int i2c_freqchip_init(const struct device *dev)
 	};                                                                       \
 	static struct i2c_freqchip_data i2c_freqchip_data_##inst;                \
                                                                              \
+	PM_DEVICE_DT_INST_DEFINE(inst, i2c_freqchip_pm_action);                  \
 	I2C_DEVICE_DT_INST_DEFINE(inst,                                          \
-				              i2c_freqchip_init, NULL,                       \
+				              i2c_freqchip_init, PM_DEVICE_DT_INST_GET(inst), \
 				              &i2c_freqchip_data_##inst,                     \
 				              &i2c_freqchip_cfg_##inst,                      \
 				              POST_KERNEL, CONFIG_I2C_INIT_PRIORITY,         \
