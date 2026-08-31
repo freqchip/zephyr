@@ -26,6 +26,7 @@
 #include <zephyr/irq.h>
 #include <zephyr/sys/__assert.h>
 #include <zephyr/sys/util.h>
+#include <zephyr/pm/device.h>
 
 #include "driver_can.h"
 #include "system_fr802x.h"
@@ -558,12 +559,148 @@ static int can_fr802x_get_max_filters(const struct device *dev, bool ide)
  * Initialisation
  * ------------------------------------------------------------------------- */
 
+#ifdef CONFIG_PM_DEVICE
+
+extern char freqchiip_deep_sleep;
+#define CAN_REG_RD(reg)    (*(volatile uint32_t *)&(reg))
+#define CAN_REG_WR(reg, v) (*(volatile uint32_t *)&(reg) = (v))
+
+struct can_reg_backup_t {
+    uint32_t CAN_DBTP;
+    uint32_t CAN_RWD;
+    uint32_t CAN_CCCR;
+    uint32_t CAN_NBTP;
+    uint32_t CAN_TSCC;
+    uint32_t CAN_TOCC;
+    uint32_t CAN_TOCV;
+    uint32_t CAN_TDCR;
+    uint32_t CAN_IE;
+    uint32_t CAN_ILS;
+    uint32_t CAN_ILE;
+    uint32_t CAN_GFC;
+    uint32_t CAN_SIDFC;
+    uint32_t CAN_XIDFC;
+    uint32_t CAN_XIDAM;
+    uint32_t CAN_RXF0C;
+    uint32_t CAN_RXBC;
+    uint32_t CAN_RXF1C;
+    uint32_t CAN_RXESC;
+    uint32_t CAN_TXBC;
+    uint32_t CAN_TXESC;
+    uint32_t CAN_TXBTIE;
+    uint32_t CAN_TXBCIE;
+    uint32_t CAN_TXEFC;
+    uint32_t CAN_MSGRA;
+    uint8_t  CAN_IRQ_PRIO;
+    bool     CAN_INT;
+    bool     reg_valid;  /* 仅真实挂起备份过才恢复，避免初始化时用空数据覆盖 */
+};
+static struct can_reg_backup_t reg_backup;
+
+static int can_fr802x_pm_action(const struct device *dev, enum pm_device_action action)
+{
+    struct can_fr802x_data *data = dev->data;
+    const struct can_fr802x_config *cfg = dev->config;
+
+    switch (action)
+    {
+        case PM_DEVICE_ACTION_SUSPEND:
+        {
+            reg_backup.CAN_DBTP   = CAN_REG_RD(CAN->DataTiming);
+            reg_backup.CAN_RWD    = CAN_REG_RD(CAN->RAMWatchdog);
+            reg_backup.CAN_CCCR   = CAN_REG_RD(CAN->CCCtrl);
+            reg_backup.CAN_NBTP   = CAN_REG_RD(CAN->NominalTiming);
+            reg_backup.CAN_TSCC   = CAN_REG_RD(CAN->TimestampConfig);
+            reg_backup.CAN_TOCC   = CAN_REG_RD(CAN->TimeoutConfig);
+            reg_backup.CAN_TOCV   = CAN->TimeoutCounter;
+            reg_backup.CAN_TDCR   = CAN_REG_RD(CAN->TxDelayCompensation);
+            reg_backup.CAN_IE     = CAN->IntEnable;
+            reg_backup.CAN_ILS    = CAN->IntLineSelect;
+            reg_backup.CAN_ILE    = CAN->IntLineEnbale;
+            reg_backup.CAN_GFC    = CAN_REG_RD(CAN->GlobalFilterCfg);
+            reg_backup.CAN_SIDFC  = CAN_REG_RD(CAN->StandardIDFilterCfg);
+            reg_backup.CAN_XIDFC  = CAN_REG_RD(CAN->ExtendedIDFilterCfg);
+            reg_backup.CAN_XIDAM  = CAN->ExtendedIDMask;
+            reg_backup.CAN_RXF0C  = CAN_REG_RD(CAN->RxFIFO0Config);
+            reg_backup.CAN_RXBC   = CAN->RxBufferConfig;
+            reg_backup.CAN_RXF1C  = CAN_REG_RD(CAN->RxFIFO1Config);
+            reg_backup.CAN_RXESC  = CAN_REG_RD(CAN->RxBufferElementCfg);
+            reg_backup.CAN_TXBC   = CAN_REG_RD(CAN->TxBufferConfig);
+            reg_backup.CAN_TXESC  = CAN->TxBufferElementCfg;
+            reg_backup.CAN_TXBTIE = CAN->TxOccurredIntEn;
+            reg_backup.CAN_TXBCIE = CAN->TxCancellationEndIntEn;
+            reg_backup.CAN_TXEFC  = CAN_REG_RD(CAN->TxEventFIFOConfig);
+            reg_backup.CAN_MSGRA  = CAN->MessageRamAddr;
+
+            reg_backup.CAN_IRQ_PRIO = NVIC_GetPriority(cfg->irq0);
+            reg_backup.CAN_INT      = NVIC_GetEnableIRQ(cfg->irq0);
+            reg_backup.reg_valid = true;
+        }break;
+
+        case PM_DEVICE_ACTION_RESUME:
+        {
+            if (freqchiip_deep_sleep == false)
+                return 0;
+
+            if (reg_backup.reg_valid){
+                reg_backup.reg_valid = false;
+                
+                __SYSTEM_MCAN_CLK_ENABLE();
+                __SYSTEM_MCAN_CLK_SELECT_24M();
+
+                CAN_REG_WR(CAN->CCCtrl, 0x3);    /* Initialization start */
+                CAN_REG_WR(CAN->CCCtrl, reg_backup.CAN_CCCR | 0x3);
+
+                CAN_REG_WR(CAN->TimestampConfig,     reg_backup.CAN_TSCC);
+                CAN_REG_WR(CAN->NominalTiming,       reg_backup.CAN_NBTP);
+                CAN_REG_WR(CAN->DataTiming,          reg_backup.CAN_DBTP);
+                CAN_REG_WR(CAN->GlobalFilterCfg,     reg_backup.CAN_GFC);
+                CAN->TxOccurredIntEn               = reg_backup.CAN_TXBTIE;
+                CAN->IntLineEnbale                 = reg_backup.CAN_ILE;
+                CAN->MessageRamAddr                = reg_backup.CAN_MSGRA;
+                CAN_REG_WR(CAN->StandardIDFilterCfg, reg_backup.CAN_SIDFC);
+                CAN_REG_WR(CAN->ExtendedIDFilterCfg, reg_backup.CAN_XIDFC);
+                CAN_REG_WR(CAN->TxBufferConfig,      reg_backup.CAN_TXBC);
+                CAN_REG_WR(CAN->RxBufferElementCfg,  reg_backup.CAN_RXESC);
+                CAN_REG_WR(CAN->TxBufferElementCfg,  reg_backup.CAN_TXESC);
+                CAN_REG_WR(CAN->RxFIFO0Config,       reg_backup.CAN_RXF0C);
+                CAN_REG_WR(CAN->RxFIFO1Config,       reg_backup.CAN_RXF1C);
+                CAN->RxBufferConfig                = reg_backup.CAN_RXBC;
+                CAN_REG_WR(CAN->TxEventFIFOConfig,   reg_backup.CAN_TXEFC);
+
+                CAN_REG_WR(CAN->CCCtrl, reg_backup.CAN_CCCR);
+
+                CAN->IntEnable                     = reg_backup.CAN_IE;
+                CAN->IntLineSelect                 = reg_backup.CAN_ILS;
+                CAN_REG_WR(CAN->TxDelayCompensation, reg_backup.CAN_TDCR);
+                CAN->ExtendedIDMask                = reg_backup.CAN_XIDAM;
+                CAN_REG_WR(CAN->RAMWatchdog,         reg_backup.CAN_RWD);
+                CAN_REG_WR(CAN->TimeoutConfig,       reg_backup.CAN_TOCC);
+                CAN->TimeoutCounter                = reg_backup.CAN_TOCV;
+                CAN->TxCancellationEndIntEn        = reg_backup.CAN_TXBCIE;
+
+                NVIC_SetPriority(cfg->irq0, reg_backup.CAN_IRQ_PRIO);
+                if (reg_backup.CAN_INT)
+                    irq_enable(cfg->irq0);
+            }
+        }break;
+
+        case PM_DEVICE_ACTION_TURN_ON:
+        case PM_DEVICE_ACTION_TURN_OFF:
+            return 0;
+
+        default: return -ENOTSUP;
+	}
+	return 0;
+}
+#endif /* CONFIG_PM_DEVICE */
+
 static int can_fr802x_init(const struct device *dev)
 {
 	const struct can_fr802x_config *cfg = dev->config;
 	struct can_fr802x_data *data = dev->data;
 	CAN_HandleTypeDef *hcan = &data->hcan;
-	int err, ret;
+	int err = 0, ret = 0;
 
 	data->dev = (struct device *)dev;
 
@@ -657,7 +794,12 @@ static int can_fr802x_init(const struct device *dev)
 	data->bus_off        = false;
 	data->prev_state = CAN_STATE_STOPPED;
 
-	return 0;
+#ifdef CONFIG_PM_DEVICE
+	/* 注册设备 PM 回调：系统挂起/恢复时挂起/重建 CAN 控制器 */
+	ret = pm_device_driver_init(dev, can_fr802x_pm_action);
+#endif
+
+	return ret;
 }
 
 /* ---------------------------------------------------------------------------
@@ -729,7 +871,11 @@ static const struct can_driver_api can_fr802x_driver_api = {
 		.irq1_prio = DT_INST_IRQ_BY_IDX(inst, 1, priority),	        \
 	};											                    \
 	static struct can_fr802x_data can_fr802x_data_##inst;		    \
-	DEVICE_DT_INST_DEFINE(inst, can_fr802x_init, NULL,		        \
+                                                                    \
+	PM_DEVICE_DT_INST_DEFINE(inst, can_fr802x_pm_action);           \
+                                                                    \
+	DEVICE_DT_INST_DEFINE(inst, can_fr802x_init,		            \
+			              PM_DEVICE_DT_INST_GET(inst),	            \
 			              &can_fr802x_data_##inst,			        \
 			              &can_fr802x_cfg_##inst,			        \
 			              POST_KERNEL, CONFIG_CAN_INIT_PRIORITY,    \
