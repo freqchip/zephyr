@@ -68,42 +68,24 @@ void PMU_IRQHandler_dynamic(const void *dev)
 {
     PMU_IRQHandler();
 }
-
+/*
 static void on_state_entry(enum pm_state state)
 {
-    // if (state == PM_STATE_SUSPEND_TO_RAM)
-    // {
-    //     USART2->DR = 's';
-    //     system_delay_us(10);
-
-    //     // gpio_status_latch_enable();
-    // }
+    if (state == PM_STATE_SUSPEND_TO_RAM)
+    {
+    }
 }
 static void on_state_exit(enum pm_state state)
 {
-    // gpio_status_latch_disable();
     if (state == PM_STATE_SUSPEND_TO_RAM)
     {
-        // __SYSTEM_USART2_CLK_ENABLE();
-        // *(uint32_t *)0xE0052080 = 0x1100;
-        // uint32_t *P = (uint32_t *)UART2_BASE;
-        // P[1] = 0x03;
-        // P[2] = 0x02;
-        // P[3] = 0x1C;
-        // P[4] = 0x01;
-        // P[5] = 0x0C;
-        // P[9] = 0x0101;
-        // // gpio_status_latch_disable();
-
-        // USART2->DR = 'w';
-        // system_delay_us(10);
     }
 }
 static struct pm_notifier app_pm_notifier = {
 	.state_entry = on_state_entry,
 	.state_exit  = on_state_exit,
 };
-
+*/
 void can_tx_cb(const struct device *dev, int error, void *user_data)
 {
 	printf("TX done, error=%d\n", error);
@@ -146,42 +128,9 @@ void user_entry_before_sleep(void)
 {
     USART2->DR = 's';
     system_delay_us(10);
-    // gpio_status_latch_enable();
-    // GPIOC_DATA = *(uint32_t *)0x50210008;
 }
 void user_entry_after_sleep_device_ready(void)
 {
-    // __SYSTEM_USART2_CLK_ENABLE();
-    // // __SYSTEM_GPIOC_CLK_ENABLE();
-    // // *(uint32_t *)0x50210008 = GPIOC_DATA | 0x00000001;
-    // // *(uint32_t *)0x50210014 = 1;
-    // // *(uint32_t *)0x50210000 &= ~((1 << 13) | 1);
-
-
-    // *(uint32_t *)0xE0052080 = 0x1100;
-    // uint32_t *P = (uint32_t *)UART2_BASE;
-    // P[1] = 0x03;
-    // P[2] = 0x02;
-    // P[3] = 0x1C;
-    // P[4] = 0x01;
-    // P[5] = 0x0C;
-    // P[9] = 0x0101;
-
-    // // gpio_status_latch_disable();
-    // USART2->DR = 'w';
-    // system_delay_us(10);
-
-    // __SYSTEM_USART2_CLK_ENABLE();
-    // *(uint32_t *)0xE0052080 = 0x1100;
-    // uint32_t *P = (uint32_t *)UART2_BASE;
-    // P[1] = 0x03;
-    // P[2] = 0x02;
-    // P[3] = 0x1C;
-    // P[4] = 0x01;
-    // P[5] = 0x0C;
-    // P[9] = 0x0101;
-    // gpio_status_latch_disable();
-
     USART2->DR = 'w';
     system_delay_us(10);
 }
@@ -190,7 +139,7 @@ int main(void)
 {
 	__stdout_hook_install(uart_putchar);
     
-    pm_notifier_register(&app_pm_notifier);
+    // pm_notifier_register(&app_pm_notifier);
 
 	printf("\n");
 	printf("Driver Test! %s\n", CONFIG_BOARD_TARGET);
@@ -253,6 +202,10 @@ int main(void)
 
     void gpio_demo(void);
     gpio_demo();
+
+    void can_demo(void);
+    can_demo();
+
 	/* ====== BLE 广播例程 ====== */
 	bluetooth_adv_demo();
 
@@ -270,7 +223,31 @@ int main(void)
         if (count == 60)
         {
             system_sleep_disable();
-            printf("system_sleep_disable");
+            printf("system_sleep_disable\n");
+        }
+        if (count == 70)
+        {
+            printf("i2c_demo\n");
+            void i2c_demo(void);
+            i2c_demo();
+        }
+        if (count == 75)
+        {
+            printf("can_demo\n");
+            struct can_frame frame = {0};
+            frame.id = 0x222;
+            frame.dlc = 8;
+            frame.flags = 0;
+            frame.data[0] = 0x01;
+            frame.data[1] = 0x02;
+            frame.data[2] = 0x03;
+            frame.data[3] = 0x04;
+            frame.data[4] = 0x05;
+            frame.data[5] = 0x06;
+            frame.data[6] = 0x07;
+            frame.data[7] = 0x08;
+            int ret = can_send(can_dev, &frame, K_MSEC(100), can_tx_cb, NULL);
+            printf("can_send ret:%d\n", ret);
         }
 		k_sleep(K_MSEC(1000));
 	}
@@ -381,7 +358,7 @@ void i2c_demo(void)
 	msgs[0].flags = I2C_MSG_WRITE|I2C_MSG_STOP;
 	ret = i2c_transfer(i2c0, msgs, 1, 0xA0);
 	if (ret >= 0) {
-		printf("write success: %d\n", ret);
+		printf("write success:\n");
 	} else {
 		printf("write error: %d\n", ret);
 	}
